@@ -126,7 +126,7 @@ const hukamBodies = [
 
 
 // 🔔 Send Hukamnama Notification (secured)
-app.post("/send-hukamnama1", authorizeWorker, async (req, res) => {
+app.post("/send-hukamnama", authorizeWorker, async (req, res) => {
   const channelId = "bhg_hukamnama_channel"; 
   const title = hukamTitles[Math.floor(Math.random() * hukamTitles.length)];
   const body = hukamBodies[Math.floor(Math.random() * hukamBodies.length)];
@@ -201,7 +201,7 @@ const pathBodies = [
 
 
 // 🔔 Send Path Notification (secured)
-app.post("/send-path1", authorizeWorker, async (req, res) => {
+app.post("/send-path", authorizeWorker, async (req, res) => {
   const channelId = "bhg_path_channel"; 
   const title = pathTitles[Math.floor(Math.random() * pathTitles.length)];
   const body = pathBodies[Math.floor(Math.random() * pathBodies.length)];
