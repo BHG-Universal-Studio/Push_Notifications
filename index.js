@@ -429,6 +429,51 @@ app.post("/notify-admin-post", async (req, res) => {
 
 
 
+const copyrightRequestTitle = [
+  "New Copyright Request Submitted",
+  "New Copyright Request Received"
+];
+
+const copyrightRequestBody = [
+  "A user submitted a copyright request for review.",
+  "A user submitted a copyright request for review checking."
+];
+
+
+app.post("/notify-copyright-request", async (req, res) => {
+  const channelId = "bhg_admin_channel"; 
+  const title = copyrightRequestTitle[Math.floor(Math.random() * copyrightRequestTitle.length)];
+  const body = copyrightRequestBody[Math.floor(Math.random() * copyrightRequestBody.length)];
+
+  const message = {
+    notification: { title, body },
+    android: {
+      notification: { channelId, sound: "default" } 
+    },
+    apns: {
+      payload: {
+        aps: { sound: "default" }
+      }
+    },
+    data: {
+      destination: "admin"
+    },
+    topic: "admin-app" 
+  };
+
+  try {
+    const response = await admin.messaging().send(message);
+    res.status(200).json({ success: true, message: "Copyright Request Notification sent", response });
+  } catch (err) {
+    console.error("FCM Error (notification):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
+
+
 // ✅ Start Server
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
