@@ -1,60 +1,85 @@
 const express = require("express");
-const cloudinary = require("cloudinary").v2;
 const cors = require("cors");
 const admin = require("firebase-admin");
 require("dotenv").config();
 
 const app = express();
 
-// 🧩 Middleware
+/* =========================
+   🧩 Middleware
+========================= */
 app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// 🔐 Cloudinary Config
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
 
-// 🔐 Firebase Admin Init
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+/* =========================
+   🔥 Firebase Admin (MULTI APP)
+   FULLY ISOLATED
+========================= */
 
-// 🔐 Authorization Middleware
+// 🟠 Sundar Gutka Firebase
+const sundarGutkaApp = admin.initializeApp(
+  {
+    credential: admin.credential.cert(
+      JSON.parse(process.env.FIREBASE_SUNDAR_GUTKA_SERVICE_ACCOUNT)
+    )
+  },
+  "sundarGutka"
+);
+
+// 🟢 Gurbani App Firebase
+const gurbaniApp = admin.initializeApp(
+  {
+    credential: admin.credential.cert(
+      JSON.parse(process.env.FIREBASE_GURBANI_SERVICE_ACCOUNT)
+    )
+  },
+  "gurbani"
+);
+
+// 🔵 Bhakti App Firebase
+const bhaktiApp = admin.initializeApp(
+  {
+    credential: admin.credential.cert(
+      JSON.parse(process.env.FIREBASE_BHAKTI_SERVICE_ACCOUNT)
+    )
+  },
+  "bhakti"
+);
+
+/* =========================
+   🔐 Authorization Middleware
+========================= */
 function authorizeWorker(req, res, next) {
   const authHeader = req.headers["authorization"];
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.split(" ")[1]
+    : null;
+
   const validKey = process.env.NOTIFY_SECRET_KEY;
 
   if (!token || token !== validKey) {
-    return res.status(401).json({ success: false, error: "Unauthorized request" });
+    return res
+      .status(401)
+      .json({ success: false, error: "Unauthorized request" });
   }
 
   next();
 }
 
-
-// ✅ Ping Endpoint (secured)
-app.get("/ping-server", authorizeWorker, (req, res) => {
-  res.status(200).json({ success: true, message: "pong", timestamp: Date.now() });
+/* =========================
+   ✅ Ping Endpoint (secured)
+========================= */
+app.get("/ping-server-notification", authorizeWorker, (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "pong",
+    timestamp: Date.now()
+  });
 });
 
-// ✅ Delete Cloudinary Image
-app.post("/delete", async (req, res) => {
-  const publicId = req.body.public_id;
-  if (!publicId) return res.status(400).json({ success: false, message: "Missing public_id" });
 
-  try {
-    const result = await cloudinary.uploader.destroy(publicId);
-    return res.json({ success: true, result });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 
 const hukamTitles = [
@@ -125,8 +150,47 @@ const hukamBodies = [
 ];
 
 
+// 🔔 Send Hukamnama Notification (DATA-ONLY, secured)
+app.post("/send-hukamnama-sundar-gutka", authorizeWorker, async (req, res) => {
+  const channelId = "bhg_hukamnama_channel"; 
+  const title = hukamTitles[Math.floor(Math.random() * hukamTitles.length)];
+  const body = hukamBodies[Math.floor(Math.random() * hukamBodies.length)];
+
+  const message = {
+
+    data: {
+      title,
+      body,
+      destination: "hukamnama",
+      channel_id: channelId
+    },
+
+
+    topic: "hukamnama",
+
+
+    android: {
+      priority: "high"
+    }
+  };
+
+  try {
+    const response = await sundarGutkaApp.messaging().send(message);
+    res.status(200).json({
+      success: true,
+      message: "Hukamnama (data-only) sent",
+      response
+    });
+  } catch (err) {
+    console.error("FCM Error (hukamnama data-only):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
 // 🔔 Send Hukamnama Notification (secured)
-app.post("/send-hukamnama", authorizeWorker, async (req, res) => {
+app.post("/send-hukamnama-gurbani-app", authorizeWorker, async (req, res) => {
   const channelId = "bhg_hukamnama_channel"; 
   const title = hukamTitles[Math.floor(Math.random() * hukamTitles.length)];
   const body = hukamBodies[Math.floor(Math.random() * hukamBodies.length)];
@@ -148,13 +212,15 @@ app.post("/send-hukamnama", authorizeWorker, async (req, res) => {
   };
 
   try {
-    const response = await admin.messaging().send(message);
+    const response = await gurbaniApp.messaging().send(message);
     res.status(200).json({ success: true, message: "Hukamnama sent", response });
   } catch (err) {
     console.error("FCM Error (hukamnama):", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+
 
 
 
@@ -200,8 +266,51 @@ const pathBodies = [
 
 
 
+
+// 🔔 Send Path Notification (DATA-ONLY, secured)
+app.post("/send-path-sundar-gutka", authorizeWorker, async (req, res) => {
+  const channelId = "bhg_path_channel"; 
+  const title = pathTitles[Math.floor(Math.random() * pathTitles.length)];
+  const body = pathBodies[Math.floor(Math.random() * pathBodies.length)];
+
+  const message = {
+    // ✅ DATA-ONLY PAYLOAD
+    data: {
+      title,
+      body,
+      destination: "pathradio",
+      playSpecial: "true",
+      channel_id: channelId
+    },
+
+    // ✅ Topic delivery
+    topic: "daily-path",
+
+    // ✅ Ensure background delivery
+    android: {
+      priority: "high"
+    }
+  };
+
+  try {
+    const response = await sundarGutkaApp.messaging().send(message);
+    res.status(200).json({
+      success: true,
+      message: "Path (data-only) sent",
+      response
+    });
+  } catch (err) {
+    console.error("FCM Error (path data-only):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
+
+
 // 🔔 Send Path Notification (secured)
-app.post("/send-path", authorizeWorker, async (req, res) => {
+app.post("/send-path-gurbani-app", authorizeWorker, async (req, res) => {
   const channelId = "bhg_path_channel"; 
   const title = pathTitles[Math.floor(Math.random() * pathTitles.length)];
   const body = pathBodies[Math.floor(Math.random() * pathBodies.length)];
@@ -224,13 +333,15 @@ app.post("/send-path", authorizeWorker, async (req, res) => {
   };
 
   try {
-    const response = await admin.messaging().send(message);
+    const response = await gurbaniApp.messaging().send(message);
     res.status(200).json({ success: true, message: "Path sent", response });
   } catch (err) {
     console.error("FCM Error (path):", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+
 
 
 
@@ -264,9 +375,49 @@ const pathNightBodies = [
 
 
 
+// 🔔 Send Night Path Notification (DATA-ONLY, secured)
+app.post("/send-path-night-sundar-gutka", authorizeWorker, async (req, res) => {
+  const channelId = "bhg_night_path"; 
+  const title = pathNightTitles[Math.floor(Math.random() * pathNightTitles.length)];
+  const body = pathNightBodies[Math.floor(Math.random() * pathNightBodies.length)];
+
+  const message = {
+    // ✅ DATA-ONLY PAYLOAD
+    data: {
+      title,
+      body,
+      destination: "path",
+      channel_id: channelId
+    },
+
+    // ✅ Topic delivery
+    topic: "night-path",
+
+    // ✅ Ensure background delivery
+    android: {
+      priority: "high"
+    }
+  };
+
+  try {
+    const response = await sundarGutkaApp.messaging().send(message);
+    res.status(200).json({
+      success: true,
+      message: "Night Path (data-only) sent",
+      response
+    });
+  } catch (err) {
+    console.error("FCM Error (night-path data-only):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
+
 
 // 🔔 Send Night Path Notification (secured)
-app.post("/send-night-path1", authorizeWorker, async (req, res) => {
+app.post("/send-night-path-gurbani-app", authorizeWorker, async (req, res) => {
   const channelId = "bhg_path_night_channel"; 
  const title = pathNightTitles[Math.floor(Math.random() * pathNightTitles.length)];
   const body = pathNightBodies[Math.floor(Math.random() * pathNightBodies.length)];
@@ -288,93 +439,13 @@ app.post("/send-night-path1", authorizeWorker, async (req, res) => {
   };
 
   try {
-    const response = await admin.messaging().send(message);
+    const response = await gurbaniApp.messaging().send(message);
     res.status(200).json({ success: true, message: "Night Path sent", response });
   } catch (err) {
     console.error("FCM Error (night-path):", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-
-
-
-
-
-// 🔔 Send Notification To Specific Device Token (secured)
-app.post("/send-test-notification-with-token", authorizeWorker, async (req, res) => {
-  const { token, title, body, data } = req.body;
-
-  if (!token || !title || !body) {
-    return res.status(400).json({ success: false, error: "Missing required fields" });
-  }
-
-  const message = {
-    token,
-    notification: { title, body },
-    android: {
-      notification: { sound: "default" }
-    },
-    apns: {
-      payload: {
-        aps: { sound: "default" }
-      }
-    },
-    data: data || {}
-  };
-
-  try {
-    const response = await admin.messaging().send(message);
-    res.status(200).json({ success: true, message: "Test Notification Sent", response });
-  } catch (err) {
-    console.error("FCM Error (token):", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-
-
-
-// 🔔 Send Hukamnama Notification To Specific Device Token (secured)
-app.post("/send-test-notification-token-with-destination", authorizeWorker, async (req, res) => {
-  const { token } = req.body;
-
-  if (!token) {
-    return res.status(400).json({ success: false, error: "Missing token" });
-  }
-
-  const title = hukamTitles[Math.floor(Math.random() * hukamTitles.length)];
-  const body = hukamBodies[Math.floor(Math.random() * hukamBodies.length)];
-
-  const message = {
-    token,
-    notification: { title, body },
-    android: {
-      notification: {
-        sound: "default",
-        channelId: "bhg_general_channel", 
-      }
-    },
-    apns: {
-      payload: {
-        aps: { sound: "default" }
-      }
-    },
-    data: {
-      destination: "pathradio"
-    }
-  };
-
-  try {
-    const response = await admin.messaging().send(message);
-    res.status(200).json({ success: true, message: "sent to token", response });
-  } catch (err) {
-    console.error("FCM Error (hukamnama token):", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-
 
 
 
@@ -389,7 +460,6 @@ const adminNotificationBody = [
   "A user submitted a new post for review.",
   "A user submitted a new post for review checking."
 ];
-
 
 
 
@@ -417,13 +487,15 @@ app.post("/notify-admin-post", async (req, res) => {
   };
 
   try {
-    const response = await admin.messaging().send(message);
+    const response = await gurbaniApp.messaging().send(message);
     res.status(200).json({ success: true, message: "Post Notification sent", response });
   } catch (err) {
     console.error("FCM Error (notification):", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+
 
 
 
@@ -462,7 +534,7 @@ app.post("/notify-copyright-request", async (req, res) => {
   };
 
   try {
-    const response = await admin.messaging().send(message);
+    const response = await gurbaniApp.messaging().send(message);
     res.status(200).json({ success: true, message: "Copyright Request Notification sent", response });
   } catch (err) {
     console.error("FCM Error (notification):", err);
@@ -474,7 +546,198 @@ app.post("/notify-copyright-request", async (req, res) => {
 
 
 
-// ✅ Start Server
+
+
+// post admin Notification
+
+app.post("/notify-admin-post-bhakti-app", async (req, res) => {
+  const channelId = "bhg_admin_channel"; 
+  const title = adminNotificationTitle[Math.floor(Math.random() * adminNotificationTitle.length)];
+  const body = adminNotificationBody[Math.floor(Math.random() * adminNotificationBody.length)];
+
+  const message = {
+    notification: { title, body },
+    android: {
+      notification: { channelId, sound: "default" } 
+    },
+    apns: {
+      payload: {
+        aps: { sound: "default" }
+      }
+    },
+    data: {
+      destination: "admin"
+    },
+    topic: "admin-app" 
+  };
+
+  try {
+    const response = await bhaktiApp.messaging().send(message);
+    res.status(200).json({ success: true, message: "Post Notification sent", response });
+  } catch (err) {
+    console.error("FCM Error (notification):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// 🌅 Morning Hindu Devotional Notifications (Gayatri, Hanuman, Shiv, Vishnu)
+const hinduMorningTitles = [
+  "🌅 सुबह का शुभ आरंभ – गायत्री मंत्र सुनें",
+  "🕉️ दिन की शुरुआत दिव्य मंत्रों के साथ",
+  "✨ आज का गायत्री मंत्र – मन शांति से भरें",
+  "🙏 प्रभात समय – हनुमान चालीसा का सुमिरन",
+  "🛕 भोलेनाथ का आशीर्वाद – शिव चालीसा सुनें",
+  "🌞 शुभ प्रभात – श्री विष्णु आरती का समय",
+  "🕉️ मंत्र शक्ति से दिन को पवित्र बनाएं",
+  "✨ प्रभात पूजा – आज सुबह दिव्य मंत्रों के साथ",
+  "🙏 आध्यात्मिक शुरुआत – गायत्री मंत्र की वाणी",
+  "🛕 प्रभु का नाम जपें – हनुमान चालीसा उपलब्ध",
+  "🌅 शुभ सुबह – मन को शांत करने का समय",
+  "✨ दिव्य उर्जा प्राप्त करें – आज का मंत्र तैयार है",
+  "🕉️ सुबह का सुमिरन – भगवान का आशीर्वाद पाएं"
+];
+
+const hinduMorningBodies = [
+  "सुबह का समय शुभ होता है। गायत्री मंत्र सुनें और दिन की शुरुआत सकारात्मक ऊर्जा से करें। 🌅",
+  "हनुमान चालीसा के सुमिरन से मन और आत्मा को शांति मिले। 🙏",
+  "दिव्य मंत्रों की शक्ति से अपने दिन को पवित्र बनाएँ। अभी सुनें। 🕉️",
+  "प्रभात बेला में शिव चालीसा का पाठ मन को संतुलन देता है। ✨",
+  "श्री विष्णु आरती से दिन की शुरुआत करें और कृपा प्राप्त करें। 🛕",
+  "सुबह का यह पवित्र समय ईश्वर से जुड़ने का उपयुक्त क्षण है। 🌞",
+  "गायत्री मंत्र की ध्वनि आपके दिन को उन्नति और शांति से भर दे। 🌟",
+  "हनुमान जी का नाम जपें और अपने दिन में बल और भक्ति भरें। 🙏",
+  "भगवान के नाम का स्मरण मन को शांति और शक्ति प्रदान करता है। 🕉️",
+  "शुभ प्रभात! आज का आध्यात्मिक मंत्र आपके मन को स्थिर बनाएगा। 🌅",
+  "शिव चालीसा के पाठ से दिन की शुरुआत दिव्य आशीर्वाद से करें। ✨",
+  "आध्यात्मिक ऊर्जा से भरपूर सुबह – अपने ईश्वर से जुड़ें। 🌞"
+];
+
+
+
+// 🔔 Send Hindu Morning Notification
+app.post("/send-live-bhajans-morning", authorizeWorker, async (req, res) => {
+  const channelId = "bhakti_daily_bhajan_channel"; 
+  const title = hinduMorningTitles[Math.floor(Math.random() * hinduMorningTitles.length)];
+  const body = hinduMorningBodies[Math.floor(Math.random() * hinduMorningBodies.length)];
+
+  const message = {
+    notification: { title, body },
+    android: {
+      notification: { channelId, sound: "default" }
+    },
+    apns: {
+      payload: {
+        aps: { sound: "default" }
+      }
+    },
+    data: {
+      destination: "path",  
+      playSpecial: "true"
+    },
+    topic: "daily-bhajan"
+  };
+
+  try {
+    const response = await bhaktiApp.messaging().send(message);
+    res.status(200).json({ success: true, message: "Morning Hindu notification sent", response });
+  } catch (err) {
+    console.error("FCM Error (hindu morning):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
+const hinduEveningTitles = [
+  "🕯️ शाम की आरती – देवी माँ का सुमिरन करें",
+  "🌆 भोलेनाथ की कृपा – शिव भजन सुनें",
+  "🪔 गजानन का आशीर्वाद – गणेश भजन उपलब्ध",
+  "🎶 कृष्ण भक्ति की शाम – मुरलीधर के भजन सुनें",
+  "🔥 वीर बजरंगबली – हनुमान जी के भजन लाइव",
+  "🌙 प्रभु श्री राम – शाम की भक्ति आरंभ",
+  "✨ मंत्र शक्ति की संध्या – मन को ऊर्जा दें",
+  "🛕 देवी माँ की महिमा – दिव्य शाम की भक्ति",
+  "🕉️ हर हर महादेव – शिव भजन आपकी प्रतीक्षा में",
+  "🌄 गणपति बप्पा मोरिया – भक्ति समय",
+  "🎵 शाम की शांति – कृष्ण भजन का समय",
+  "🔥 हनुमान चालीसा व भजन – संध्या का सुमिरन",
+  "🕯️ राम नाम की महिमा – शाम की भक्ति शुरू",
+  "✨ दिव्य मंत्रों के साथ अपनी शाम सुखद बनाएं",
+  "🛕 आज की संध्या – देवी, शिव, राम की भक्ति"
+];
+
+
+const hinduEveningBodies = [
+  "शाम की शांतिमा में देवी माँ की भक्ति करें और अपने मन को दिव्य ऊर्जा से भरें। 🕯️",
+  "भोलेनाथ के भजनों से अपनी शाम को पवित्र बनाएं। हर हर महादेव! 🌆",
+  "गणपति बप्पा के भजन सुनकर अपने घर में शांति और आनंद लाएँ। 🪔",
+  "कृष्ण भक्ति की मधुर धुन आपके मन को शांति प्रदान करेगी। 🎶",
+  "हनुमान जी के भजन सुनें और शक्ति, साहस व भक्ति प्राप्त करें। 🔥",
+  "शाम की इस दिव्य बेला में राम नाम का स्मरण करें और कृपा प्राप्त करें। 🌙",
+  "मंत्र शक्ति की संध्या – सकारात्मक ऊर्जा और शांति का अनुभव करें। ✨",
+  "दिव्य देवी माँ की महिमा सुनकर अपनी शाम को आशीषपूर्ण बनाएं। 🛕",
+  "भोलेनाथ की आराधना से मन की थकान दूर करें। हर हर महादेव! 🕉️",
+  "गणेश जी के भजन आपकी शाम को मंगलमय बनाएँगे। 🌄",
+  "कृष्ण भजनों की मधुरता से मन और आत्मा को शांति मिले। 🎵",
+  "हनुमान जी की वाणी से शाम की भक्ति का शुभ आरंभ करें। 🔥",
+  "श्री राम भक्ति से आपकी संध्या खुशियों और शांति से भर जाए। 🕯️",
+  "आज की शाम दिव्य मंत्रों की ऊर्जा से भरपूर – अभी सुनें। ✨",
+  "देवी, शिव, गणेश और राम भक्ति की संध्या शुरू – रेडियो लाइव। 🛕"
+];
+
+
+
+
+
+// 🔔 Send Hindu Morning Notification
+app.post("/send-live-bhajans-evening", authorizeWorker, async (req, res) => {
+  const channelId = "bhakti_live_bhajan_channel"; 
+  const title = hinduEveningTitles[Math.floor(Math.random() * hinduEveningTitles.length)];
+  const body = hinduEveningBodies[Math.floor(Math.random() * hinduEveningBodies.length)];
+
+  const message = {
+    notification: { title, body },
+    android: {
+      notification: { channelId, sound: "default" }
+    },
+    apns: {
+      payload: {
+        aps: { sound: "default" }
+      }
+    },
+    data: {
+      destination: "radio",  
+      playSpecial: "true"
+    },
+    topic: "live-bhajan"
+  };
+
+  try {
+    const response = await bhaktiApp.messaging().send(message);
+    res.status(200).json({ success: true, message: "Evening Hindu notification sent", response });
+  } catch (err) {
+    console.error("FCM Error (hindu evening):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
+
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`✅ Server running on port ${port}`);
