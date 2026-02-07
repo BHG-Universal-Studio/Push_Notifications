@@ -276,6 +276,82 @@ app.post("/send-hukamnama-gurbani-app", authorizeWorker, async (req, res) => {
 
 
 
+// 🌅 Harmandir Sahib Morning Kirtan Messages
+const morningTitles = [
+  "🌅 Amritvela – Harmandir Sahib Live Kirtan",
+  "✨ Guru Di Subah – Harmandir Sahib Kirtan Live",
+  "🙏 Amritvela Kirtan – Sachkhand Harmandir Sahib",
+  "🌄 Start Your Day with Harmandir Sahib Kirtan",
+  "🕊️ Amritvela Di Roshni – Live Kirtan Darshan",
+  "🌞 Guru Di Mehar – Harmandir Sahib Morning Kirtan",
+  "🪔 Amritvela Simran – Harmandir Sahib Live",
+  "🌅 Sachkhand Harmandir Sahib Live Kirtan",
+  "🙏 Guru Nanak Di Bani – Morning Kirtan Live",
+  "🌄 Wake Up with Naam – Harmandir Sahib Kirtan"
+];
+
+const morningBodies = [
+  "Amritvela di pavittar shuruaat. Harmandir Sahib ton live kirtan suno. 🌅🙏",
+  "Subah di shanti Guru di bani vich. Harmandir Sahib live kirtan naal judo. ✨",
+  "Naam Simran naal din di shuruaat karo – Sachkhand Harmandir Sahib ton kirtan. 🕊️",
+  "Guru Sahib Ji di mehar naal apna din shuru karo. Live kirtan suno. 🌄🙏",
+  "Amritvela da samah, Guru di yaad da samah. Harmandir Sahib live kirtan. 🪔",
+  "Mann nu shanti, dil nu bal – Harmandir Sahib di subah di bani suno. 🌞",
+  "Sachkhand di pavittarta mehsoos karo. Harmandir Sahib ton live kirtan. ✨🙏",
+  "Subah subah Guru di hazoori. Harmandir Sahib kirtan live darshan. 🌅",
+  "Naam vich judo, Guru de naal chalo. Harmandir Sahib morning kirtan. 🕊️",
+  "Ik pavittar subah Guru di bani naal – Live from Harmandir Sahib. 🌄🙏"
+];
+
+
+
+
+
+
+// 🔔 Send Path Notification (DATA-ONLY, secured)
+app.post("/send-morning-path-harmandir-sahib-app", authorizeWorker, async (req, res) => {
+  const channelId = "gurbani_morning_radio"; 
+  const title = morningTitles[Math.floor(Math.random() * morningTitles.length)];
+  const body = morningBodies[Math.floor(Math.random() * morningBodies.length)];
+
+  const message = {
+    // ✅ DATA-ONLY PAYLOAD
+    data: {
+      title,
+      body,
+      destination: "homeTab",
+      playSpecial: "true",
+      channel_id: channelId
+    },
+
+    // ✅ Topic delivery
+    topic: "morning-path-radio",
+
+    // ✅ Ensure background delivery
+    android: {
+      priority: "high"
+    }
+  };
+
+  try {
+    const response = await harmandirSahibApp.messaging().send(message);
+    res.status(200).json({
+      success: true,
+      message: "Path (data-only) sent",
+      response
+    });
+  } catch (err) {
+    console.error("FCM Error (path data-only):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
+
+
+
+
 
 
 // 🧠 path rehras sahib Messages
