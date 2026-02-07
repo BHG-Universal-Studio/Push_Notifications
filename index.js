@@ -28,6 +28,15 @@ const sundarGutkaApp = admin.initializeApp(
   "sundarGutka"
 );
 
+const harmandirSahibApp = admin.initializeApp(
+  {
+    credential: admin.credential.cert(
+      JSON.parse(process.env.FIREBASE_HARMANDIR_SAHIB_SERVICE_ACCOUNT)
+    )
+  },
+  "harmandirSahib"
+);
+
 // 🟢 Gurbani App Firebase
 const gurbaniApp = admin.initializeApp(
   {
@@ -148,6 +157,47 @@ const hukamBodies = [
   "Waheguru Ji ne aaj vi apne sevak layi sandesh bhejiya hai. Aao, us pavittar bachan nu padhiye. 📜🌞",
   "Ik vaar Guru da bachan sun lo – man diyaan uljhanaan hal ho jaan. Aaj da hukam jivan nu roshan kare. 🕯️"
 ];
+
+
+
+// 🔔 Send Hukamnama Notification (DATA-ONLY, secured)
+app.post("/send-hukamnama-harmandir-sahib", authorizeWorker, async (req, res) => {
+  const channelId = "gurbani_hukamnama_channel"; 
+  const title = hukamTitles[Math.floor(Math.random() * hukamTitles.length)];
+  const body = hukamBodies[Math.floor(Math.random() * hukamBodies.length)];
+
+  const message = {
+
+    data: {
+      title,
+      body,
+      destination: "liveGurbaniTab",
+      channel_id: channelId
+    },
+
+
+    topic: "hukamnama-video",
+
+
+    android: {
+      priority: "high"
+    }
+  };
+
+  try {
+    const response = await harmandirSahibApp.messaging().send(message);
+    res.status(200).json({
+      success: true,
+      message: "Hukamnama (data-only) sent",
+      response
+    });
+  } catch (err) {
+    console.error("FCM Error (hukamnama data-only):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 
 
 // 🔔 Send Hukamnama Notification (DATA-ONLY, secured)
@@ -344,6 +394,46 @@ app.post("/send-path-gurbani-app", authorizeWorker, async (req, res) => {
 
 
 
+
+
+
+// 🔔 Send Path Notification (DATA-ONLY, secured)
+app.post("/send-path-harmandir-sahib-app", authorizeWorker, async (req, res) => {
+  const channelId = "gurbani_evening_radio"; 
+  const title = pathTitles[Math.floor(Math.random() * pathTitles.length)];
+  const body = pathBodies[Math.floor(Math.random() * pathBodies.length)];
+
+  const message = {
+    // ✅ DATA-ONLY PAYLOAD
+    data: {
+      title,
+      body,
+      destination: "homeTab",
+      playSpecial: "true",
+      channel_id: channelId
+    },
+
+    // ✅ Topic delivery
+    topic: "evening-path-radio-rehras-sahib",
+
+    // ✅ Ensure background delivery
+    android: {
+      priority: "high"
+    }
+  };
+
+  try {
+    const response = await harmandirSahibApp.messaging().send(message);
+    res.status(200).json({
+      success: true,
+      message: "Path (data-only) sent",
+      response
+    });
+  } catch (err) {
+    console.error("FCM Error (path data-only):", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 
 
